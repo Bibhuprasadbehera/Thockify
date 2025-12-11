@@ -3,3 +3,4 @@ pygame
 pynput
 pystray
 Pillow
+evdev; sys_platform == 'linux'

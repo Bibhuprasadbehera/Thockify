@@ -21,9 +21,41 @@ def main():
     sound_engine = SoundEngine(config)
 
     # Initialize Input Listener
-    from core.listener import InputListener
-    listener = InputListener(sound_engine)
-    listener.start()
+    listener = None
+    
+    # Try evdev on Linux (requires root or input group)
+    if sys.platform.startswith("linux"):
+        try:
+            from core.listener_linux import LinuxInputListener
+            # Check permissions by trying to open a device
+            import evdev
+            try:
+                devices = evdev.list_devices()
+                if not devices:
+                    raise PermissionError("No devices found (empty list).")
+                # Try opening the first device to verify read permissions
+                evdev.InputDevice(devices[0])
+                
+                print("Permissions ok for evdev. Using LinuxInputListener.")
+                listener = LinuxInputListener(sound_engine)
+            except (PermissionError, OSError):
+                print("Permission denied for evdev (device access). Falling back to pynput.")
+                print("Tip: Run 'sudo ./setup_permissions.sh' then LOG OUT to fix.")
+                raise ImportError("Force fallback") # Trigger outer except
+        except ImportError:
+            pass
+
+    if listener is None:
+        from core.listener import InputListener
+        print("Using pynput listener (Window-local only).")
+        listener = InputListener(sound_engine)
+
+    # Start listener with error handling
+    try:
+        listener.start()
+    except Exception as e:
+        print(f"Failed to start listener: {e}")
+        sys.exit(1)
 
     # Initialize GUI
     from gui.app import ThockifyApp
